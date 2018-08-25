@@ -25,6 +25,8 @@ data ImageSettings = ImageSettings {
     , imageY0 :: Double             
     , imageX1 :: Double
     , imageAspectRatio :: Double    -- ^ The requested aspect ratio of the image
+    , imageThreadCount :: Int       -- ^ The number of threads to use for image calculation
+    , imageOutputPath :: String     -- ^ The output path for the image.
     } deriving (Generic, Show, ToJSON, FromJSON)
     
 
@@ -86,7 +88,19 @@ commandlineInputParser = CommandlineInput <$> (ImageSettings
       (  long "aspect-ratio"
       <> short 'A'
       <> value 1.4142135623730951
-      <> help "Aspect ratio" ))
+      <> help "Aspect ratio" )
+    <*> option auto
+      (  long "thread-count"
+      <> short 'T'
+      <> value (-1)
+      <> showDefault
+      <> help "Number of threads to use for rendering. A value of -1 forces dynamic detection" )
+    <*> strOption
+      (  long "output"
+      <> short 'o'
+      <> metavar "NAME"
+      <> value []
+      <> help "Sets the output file path. If not supplied, a random filename in the current directory will be chosen" ))
      
       
 -- | Combination of the two input parsers, supporting either input by file or command line,
