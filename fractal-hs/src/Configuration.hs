@@ -8,6 +8,9 @@ module Configuration
     
 import Data.Aeson
 import GHC.Generics
+import System.FilePath
+import System.Directory
+import Data.Time
 import System.IO
 import Options.Applicative
 import qualified Data.ByteString.Lazy.Char8 as B
@@ -114,13 +117,30 @@ parseArguments :: IO(ProgramInput)
 parseArguments = execParser opts
                    where opts   = info (inputParser <**> helper)
                                    ( fullDesc
-                                  <> progDesc "Mandelbrot fractal renderer"
-                                  <> header "FractalHS" )
+                                  <> header "FractalHS -- Mandelbrot fractal renderer" )
                                   
 -- | The top level settings retrieval function. Will first inspect the command line arguments,
--- and then either load the settings from JSON document or from the command line.                                  
+-- and then either load the settings from JSON document or from the command line.
+-- Additionally, this function will determine the output file name of the image file in
+-- the case the user did not specify it.
 retrieveSettings :: IO(Either String ImageSettings)
 retrieveSettings = do
+                     settings <- retrieveSettingsImpl
+                     case settings of
+                       r@(Left _) -> return r
+                       r@(Right (s@ImageSettings {imageOutputPath=""})) -> do -- If the user didnt supply an output path, we need to create one.
+                                                                            -- We use the current time and date for this.
+                                                                            cwd <- getCurrentDirectory
+                                                                            tm <- getCurrentTime
+                                                                            let timestamp = formatTime defaultTimeLocale "%Y-%m-%d_%H:%M:%S" tm
+                                                                            let path = (</>) cwd $ timestamp ++ ".png"
+                                                                            return $ Right $ s { imageOutputPath = path }                                                          
+                       r -> return r
+                                        
+-- | Inspect the command line arguments,
+-- and then either load the settings from JSON document or from the command line.                    
+retrieveSettingsImpl :: IO(Either String ImageSettings)
+retrieveSettingsImpl = do
                      input <- parseArguments
                      case input of
                        (CommandlineInput x) -> return $ Right x
