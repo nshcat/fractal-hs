@@ -1,5 +1,6 @@
 {-# LANGUAGE DefaultSignatures #-}
 {-# LANGUAGE RankNTypes #-}
+{-# LANGUAGE RecordWildCards #-}
 
 -- | A module offering functions that can be used to generate an actual image using a
 -- rendering function.
@@ -43,25 +44,24 @@ mkArrayPar n s bounds f = listArray bounds (concat workUnits)
         
 -- | Create an image using given rendering function, using the number of threads specified in the image
 -- settings.
-generateImagePar :: forall a . P.Pixel a  => ImageSettings -> (Int -> Int -> a) -> Int -> Int -> P.Image a
-generateImagePar s f w h = P.generateImage f' w h
+generateImagePar :: forall a . P.Pixel a  => ImageParameters -> Int -> (Int -> Int -> a) -> P.Image a
+generateImagePar ImageParameters{..} tc f = P.generateImage f' paramWidth paramHeight
     where
-        bounds  = ((0, 0), (w-1,h-1))
+        bounds  = ((0, 0), (paramWidth-1,paramHeight-1))
         pixels  = mkArrayPar threads rseq bounds (uncurry f)
         f'      = curry (pixels !)
-        tc      = imageThreadCount s
         threads = if tc <= 0 then numCapabilities else tc
         
 -- | Create an image using given rendering function, using only a single thread.
-generateImageSingle :: forall a . P.Pixel a  => ImageSettings -> (Int -> Int -> a) -> Int -> Int -> P.Image a
-generateImageSingle _ f w h = P.generateImage f w h
+generateImageSingle :: forall a . P.Pixel a  => ImageParameters -> (Int -> Int -> a) -> P.Image a
+generateImageSingle ImageParameters{..} f = P.generateImage f paramWidth paramHeight
 
 
 -- | Generate an image using given rendering function. If enabled by the supplied image settings,
 -- this operation will be parallelized.
-generateImage :: forall a . P.Pixel a => ImageSettings -> (Int -> Int -> a) -> Int -> Int -> P.Image a
-generateImage s@ ImageSettings {imageThreadCount=1} f w h   = generateImageSingle s f w h
-generateImage s f w h                                       = generateImagePar s f w h
+generateImage :: forall a . P.Pixel a => Int -> ImageParameters -> (Int -> Int -> a) -> P.Image a
+generateImage 1 p f = generateImageSingle p f
+generateImage t p f = generateImagePar p t f
 
         
         

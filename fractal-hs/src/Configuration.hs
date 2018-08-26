@@ -1,9 +1,12 @@
 {-# LANGUAGE DeriveGeneric, DeriveAnyClass #-}
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE RecordWildCards #-}
 
 module Configuration
     ( ImageSettings(..)
     , retrieveSettings
+    , getParameters
+    , ImageParameters(..)
     ) where
     
 import Data.Aeson
@@ -31,13 +34,35 @@ data ImageSettings = ImageSettings {
     , imageThreadCount :: Int       -- ^ The number of threads to use for image calculation
     , imageOutputPath :: String     -- ^ The output path for the image.
     } deriving (Generic, Show, ToJSON, FromJSON)
-    
+  
 
 -- | A time used to handle the two different types of supported input: Loading image
 -- settings from a JSON document and directly specifying them on the command line.   
 data ProgramInput
   = JSONInput String
   | CommandlineInput ImageSettings
+
+
+-- | A record similar to ImageSettings, but containing the result of adjustment calculations.
+-- The values stored in this record are the final image parameters.
+data ImageParameters = ImageParameters {
+      paramWidth :: Int             -- ^ The width of the image in pixels.
+    , paramHeight :: Int            -- ^ The requested height of the image. 
+    , paramMaxIters :: Int          -- ^ The maximum number of iterations the renderer will calculate for each pixel.
+    , paramX0 :: Double             -- ^ The complex numbers of the two corner vertices.
+    , paramY0 :: Double             
+    , paramX1 :: Double
+    , paramY1 :: Double
+    , paramAspectRatio :: Double    -- ^ The requested aspect ratio of the image
+    } deriving (Show)
+    
+  
+-- | Determine final image parameters from given image settings
+getParameters :: ImageSettings -> ImageParameters
+getParameters ImageSettings{..} = ImageParameters imageWidth h imageMaxIters imageX0 imageY0 imageX1 y1 imageAspectRatio
+  where
+    y1 = imageY0 + (imageX1 - imageX0)
+    h  = round . (* imageAspectRatio) . fromIntegral $ imageWidth
 
 
 -- | A command line parser that deals with JSON document program input
