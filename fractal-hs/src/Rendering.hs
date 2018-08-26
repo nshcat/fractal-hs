@@ -9,7 +9,7 @@ import System.IO
 import Data.Either.Combinators
 import Data.Word      (Word8)
 import Data.Complex   (Complex(..), magnitude)
-import Codec.Picture  (generateImage, writePng, Pixel, Image)
+import Codec.Picture  (generateImage, Pixel, Image)
 
 
 fractal :: RealFloat a => Int -> Complex a -> Complex a -> Int -> (Complex a, Int)

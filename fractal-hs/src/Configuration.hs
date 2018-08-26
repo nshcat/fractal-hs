@@ -61,7 +61,7 @@ data ImageParameters = ImageParameters {
 getParameters :: ImageSettings -> ImageParameters
 getParameters ImageSettings{..} = ImageParameters imageWidth h imageMaxIters imageX0 imageY0 imageX1 y1 imageAspectRatio
   where
-    y1 = imageY0 + (imageX1 - imageX0)
+    y1 = imageY0 + (imageX1 - imageX0) * imageAspectRatio
     h  = round . (* imageAspectRatio) . fromIntegral $ imageWidth
 
 
@@ -115,7 +115,7 @@ commandlineInputParser = CommandlineInput <$> (ImageSettings
     <*> option auto
       (  long "aspect-ratio"
       <> short 'A'
-      <> value 1.4142135623730951
+      <> value (sqrt 2)
       <> help "Aspect ratio" )
     <*> option auto
       (  long "thread-count"
