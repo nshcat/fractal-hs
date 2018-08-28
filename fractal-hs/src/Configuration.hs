@@ -201,15 +201,19 @@ retrieveSettings = do
                                         
                                         -- If the user didnt supply an output path, we need to create one.
                                         -- We use the current time and date for this.
-                                        case c of
-                                          (ImageSettings{imageOutputPath=""}) -> do
-                                                                                   cwd <- getCurrentDirectory
-                                                                                   tm <- getCurrentTime
-                                                                                   let timestamp = formatTime defaultTimeLocale "%Y-%m-%d_%H:%M:%S" tm
-                                                                                   let path = (</>) cwd $ timestamp ++ ".png"
-                                                                                   return $ Right $ c { imageOutputPath = path }
-                                          _ -> return $ Right $ c
+                                        if null . imageOutputPath $ c
+                                          then (>>=) generateFileName $ return . Right . (\x -> c { imageOutputPath = x })
+                                          else return $ Right c
 
+-- | Generate a new image file name based on the current date and time. This is used when the user didn't supply
+-- an explicit output path.
+generateFileName :: IO(FilePath)
+generateFileName = do
+                     cwd <- getCurrentDirectory
+                     tm <- getCurrentTime
+                     let timestamp = formatTime defaultTimeLocale "%Y-%m-%d_%H:%M:%S" tm
+                     return . (</>) cwd . (++) timestamp $ ".png"
+  
                                         
 -- | Inspect the command line arguments,
 -- and then either load the settings from JSON document or from the command line.                    
