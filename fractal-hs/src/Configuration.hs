@@ -10,8 +10,11 @@ module Configuration
     ) where
     
 import Data.Aeson
+import Data.Aeson.Encode.Pretty
+import Control.Applicative
 import GHC.Generics
 import System.FilePath
+import Control.Monad
 import System.Directory
 import Data.Time
 import System.IO
@@ -20,20 +23,52 @@ import qualified Data.ByteString.Lazy.Char8 as B
 import Data.Semigroup ((<>))
 import Data.Either.Combinators
 
+-- TODO: Have ImageParameters as subrecord in ImageSettings. Figure that out!
+
 -- | A record storing information about the image to be generated.
 -- It is normally created by the command line argument parser and then
 -- carried through the various parts of the program.
 data ImageSettings = ImageSettings {
-      imageWidth :: Int             -- ^ The width of the image in pixels.
-    , imageHeight :: Int            -- ^ The requested height of the image. 
-    , imageMaxIters :: Int          -- ^ The maximum number of iterations the renderer will calculate for each pixel.
-    , imageX0 :: Double             -- ^ The complex numbers of the two corner vertices.
+      imageWidth :: Int                 -- ^ The width of the image in pixels.
+    , imageHeight :: Int                -- ^ The requested height of the image. 
+    , imageMaxIters :: Int              -- ^ The maximum number of iterations the renderer will calculate for each pixel.
+    , imageX0 :: Double                 -- ^ The complex numbers of the two corner vertices.
     , imageY0 :: Double             
     , imageX1 :: Double
-    , imageAspectRatio :: Double    -- ^ The requested aspect ratio of the image
-    , imageThreadCount :: Int       -- ^ The number of threads to use for image calculation
-    , imageOutputPath :: String     -- ^ The output path for the image.
-    } deriving (Generic, Show, ToJSON, FromJSON)
+    , imageAspectRatio :: Double        -- ^ The requested aspect ratio of the image
+    , imageThreadCount :: Int           -- ^ The number of threads to use for image calculation
+    , imageOutputPath :: String         -- ^ The output path for the image.
+    , imageSettingsExportPath :: String -- ^ The path of the generated JSON file containing settings. If this is empty, no export will be done.
+    } deriving (Show)
+    
+-- | Instance implementation for FromJSON. We can't use the pre-generated one here, since we need to ignore the last
+-- field of the settings structure.
+instance FromJSON ImageSettings where
+  parseJSON = withObject "imageSettings" $ \o ->
+    ImageSettings <$> o .: "width"
+                  <*> o .: "height"
+                  <*> o .: "max_iterations"
+                  <*> o .: "x0"
+                  <*> o .: "y0"
+                  <*> o .: "x1"
+                  <*> o .: "aspect_ratio"
+                  <*> o .: "thread_count"
+                  <*> o .: "output_path"
+                  <*> pure ""
+                 
+-- | Instance implementation for ToJSON. We can't use the pre-generated one here, since we need to ignore the last
+-- field of the settings structure.                 
+instance ToJSON ImageSettings where
+  toJSON s = object [
+    "width" .= imageWidth s,
+    "height" .= imageHeight s,
+    "max_iterations" .= imageMaxIters s,
+    "x0" .= imageX0 s,
+    "y0" .= imageY0 s,
+    "x1" .= imageX1 s,
+    "aspect_ratio" .= imageAspectRatio s,
+    "thread_count" .= imageThreadCount s,
+    "output_path" .= imageOutputPath s ]
   
 
 -- | A time used to handle the two different types of supported input: Loading image
@@ -128,7 +163,13 @@ commandlineInputParser = CommandlineInput <$> (ImageSettings
       <> short 'o'
       <> metavar "NAME"
       <> value []
-      <> help "Sets the output file path. If not supplied, a random filename in the current directory will be chosen" ))
+      <> help "Sets the output file path. If not supplied, a random filename in the current directory will be chosen" )
+    <*> strOption
+      (  long "export-json"
+      <> short 'E'
+      <> metavar "NAME"
+      <> value []
+      <> help "Sets the image settings JSON export file path. If not supplied, no export will be done." ))
      
       
 -- | Combination of the two input parsers, supporting either input by file or command line,
@@ -153,14 +194,22 @@ retrieveSettings = do
                      settings <- retrieveSettingsImpl
                      case settings of
                        r@(Left _) -> return r
-                       r@(Right (s@ImageSettings {imageOutputPath=""})) -> do -- If the user didnt supply an output path, we need to create one.
-                                                                            -- We use the current time and date for this.
-                                                                            cwd <- getCurrentDirectory
-                                                                            tm <- getCurrentTime
-                                                                            let timestamp = formatTime defaultTimeLocale "%Y-%m-%d_%H:%M:%S" tm
-                                                                            let path = (</>) cwd $ timestamp ++ ".png"
-                                                                            return $ Right $ s { imageOutputPath = path }                                                          
-                       r -> return r
+                       r@(Right c) -> do
+                                        -- Export settings if requested
+                                        let exportPath = imageSettingsExportPath c
+                                        when (not . null $ exportPath) $ writeFile exportPath $ (B.unpack . encodePretty $ c)
+                                        
+                                        -- If the user didnt supply an output path, we need to create one.
+                                        -- We use the current time and date for this.
+                                        case c of
+                                          (ImageSettings{imageOutputPath=""}) -> do
+                                                                                   cwd <- getCurrentDirectory
+                                                                                   tm <- getCurrentTime
+                                                                                   let timestamp = formatTime defaultTimeLocale "%Y-%m-%d_%H:%M:%S" tm
+                                                                                   let path = (</>) cwd $ timestamp ++ ".png"
+                                                                                   return $ Right $ c { imageOutputPath = path }
+                                          _ -> return $ Right $ c
+
                                         
 -- | Inspect the command line arguments,
 -- and then either load the settings from JSON document or from the command line.                    
